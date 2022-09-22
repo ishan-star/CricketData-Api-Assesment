@@ -9,7 +9,8 @@ const app = express();
 app.use(bodyParser.urlencoded({extended: true}))
 
 //Fetching the upcoming matches from api and saving in database.
-mongoose.connect("mongodb://localhost:27017/UCM");
+mongoose.connect("mongodb://localhost:27017/UCM", {useNewUrlParser: true, useFindAndModify: false,
+UseUnifiedTopology:true});
 
 const postSchema = new mongoose.Schema({
 	data:[{
@@ -26,6 +27,14 @@ const postSchema = new mongoose.Schema({
 			name: String,
 			shortname: String,
 		}],
+		score: [
+			{
+				r: Number,
+				w: Number,
+				o: Number,
+				inning: String,
+			}
+		],
 		seriesid : String,
 		fantasyEnabled: Boolean,
 		bbbEnabled: Boolean,
@@ -72,20 +81,43 @@ async function getPosts() {
 }
 getPosts();
 
+
+
 app.get("/",function(req,res){
  res.sendFile(__dirname+"/index.html");
 
 
 //Adding a scheduler to update live score every 10 minutes.
+async function updatePost()
+{
+	const updPosts = await fetch("https://api.cricapi.com/v1/currentMatches?apikey=356e5244-8f17-416d-9d3a-f0c10ba395e0&offset=0");
+	const response = updPosts.json();
+	for(let i=0; i< response.length; i++)
+	{
+		const identify = response[i][id];
+		try{
+			const result = await Post.updateOne({identify},{
+			$set:{
+								r: response[i]['r'],
+								w: response[i]['w'],
+								o: response[i]['o'],
+								inning: response[i]['inning']
+			}
+		
+
+		});
+	}catch(err){
+		console.log(err);
+	}
+	}
+}
+
 
 cron.schedule('0,10,20,30,40,50 * * * *',function(){
-				app.post("/",function(req,res){
-					const url = "https://api.cricapi.com/v1/currentMatches?apikey=356e5244-8f17-416d-9d3a-f0c10ba395e0&offset=0";
-					https.get(url,function(response){
-						console.log(response);
-					res.send();
+													updatePost();
+				
 				})
-})
+
 
 
 app.listen(3000,function(){
